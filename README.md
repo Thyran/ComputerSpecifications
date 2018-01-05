@@ -4,7 +4,7 @@ A simple script to retrieve some  hardware information
 -
 "Settings.txt" saves Settings for the local device
 -  @line 0: Path to save the output file
--  @line 1: Prefix of the file (Ex. "inv_[deviceName](_)[date].csv")
+-  @line 1: Prefix of the file (Ex. "inv_<deviceName>_<date>.csv")
 -  @line 2: Ending of the file (here: ".csv")
  
 "domainSetting.txt" saves Settings that influence the DomainScript
