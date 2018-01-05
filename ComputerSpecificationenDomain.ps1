@@ -17,6 +17,7 @@ function main {
                 Copy-Item -Path C:\Benedikt\PowershellScripts\ComputerSpecificationen.ps1 -Destination \\$pc\c$\\temp\ -Force
             }
             Invoke-Command -computerName $pc -FilePath C:\temp\ComputerSpecificationen.ps1
+            sleep 1
         }
     }
 }
