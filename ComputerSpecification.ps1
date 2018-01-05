@@ -12,10 +12,28 @@ function formatStr {
     return $string;
 }
 
+function formatAsSize {
+    param ([string] $string);
+
+    $string = ([string] ([math]::round((formatStr($string) -as [double]) / [math]::pow(1024, 3)))).Substring(0, 1) + " GB";
+
+    return $string;
+}
+
+function formatDriveSize {
+    param ([string] $string);
+
+    $string = ([string] ([math]::Round((formatStr ($string) -as [double]) / [math]::Pow(1024, 3), 2)));
+
+    return $string;
+}
+
 function computer {
     param($obj);
 
-    $systemType = formatStr (Get-WmiObject Win32_Computersystem | select SystemType);
+    $computer = Get-WmiObject Win32_Computersystem | select Name, Manufacturer, Model, SystemType, Domain;
+
+    $systemType = formatStr ($computer | select SystemType);
     if ($systemType.contains("64")) {
         $systemType = "64-Bit";
     } elseif ($systemType.contains("86") -or $systemType.contains("32")) {
@@ -25,11 +43,11 @@ function computer {
         log -Log "Systemtyp wurde nicht erkannt";
     }
 
-    $obj | Add-Member "Computer Name" (formatStr (Get-WmiObject Win32_Computersystem | select Name));
-    $obj | Add-Member "Hersteller" (formatStr (Get-WmiObject Win32_Computersystem | select Manufacturer));
-    $obj | Add-Member "Model" (formatStr (Get-WmiObject Win32_Computersystem | select Model));
+    $obj | Add-Member "Computer Name" (formatStr ($computer | select Name));
+    $obj | Add-Member "Hersteller" (formatStr ($computer | select Manufacturer));
+    $obj | Add-Member "Model" (formatStr ($computer | select Model));
     $obj | Add-Member "System Typ" $systemType;
-    $obj | Add-Member "Domaene" (formatStr (Get-WmiObject Win32_Computersystem | select Domain));
+    $obj | Add-Member "Domäne" (formatStr ($computer | select Domain));
 
     return $obj;
 }
@@ -37,9 +55,11 @@ function computer {
 function bios {
     param($obj);
 
-    $obj | Add-Member "Bios Verison" (formatStr(Get-WmiObject Win32_Bios | select Version));
-    $obj | Add-Member "Bios SMBiosVersion" (formatStr(Get-WmiObject Win32_Bios | select SMBIOSBIOSVersion));
-    $obj | Add-Member "Seriennummer" (formatStr(Get-WmiObject Win32_Bios | select SerialNumber));
+    $bios = Get-WmiObject Win32_Bios | select Version, SMBIOSBIOSVersion, SerialNumber;
+
+    $obj | Add-Member "Bios Verison" (formatStr($bios | select Version));
+    $obj | Add-Member "Bios SMBiosVersion" (formatStr($bios | select SMBIOSBIOSVersion));
+    $obj | Add-Member "Seriennummer" (formatStr($bios | select SerialNumber));
 
     return $obj;
 }
@@ -48,30 +68,31 @@ function arbeitsspeicher {
     param($obj);
 
     for ($i = 0; $i -le (Get-WmiObject Win32_PhysicalMemory | select Capacity).length - 1; $i++) {
-        $obj | Add-Member "RAM Kapazität $i" (([string] ([math]::round((formatStr((Get-WmiObject Win32_PhysicalMemory | select Capacity) | select-object -Index $i)) -as [double]) / [math]::pow(1024, 3))).Substring(0, 1) + " GB");
-        $obj | Add-Member "RAM Speed $i" ((formatStr((Get-WmiObject Win32_PhysicalMemory | select Speed) | Select-Object -index $i)) + " Mhz");
+        $ram = (Get-WmiObject Win32_PhysicalMemory | select Tag, Capacity, Speed) | Select-Object -Index $i;
+
+        $obj | Add-Member "Ram Tag $i" (formatStr ($ram | select Tag));
+        $obj | Add-Member "RAM Kapazität $i" (formatAsSize ($ram | select Capacity));
+        $obj | Add-Member "RAM Frequenz $i" ((formatStr($ram | select Speed)) + " Mhz");
     }
 
     return $obj;
 }
 
-function laufwerke {
+function laufwerk {
     param($obj);
 
-    for ($i=0; $i -le (Get-WmiObject Win32_DiskDrive | select DeviceID).length - 1; $i++) {
-        if (([int] (formatStr((Get-WmiObject Win32_DiskDrive | select Index) | Select-Object -Index $i))) -eq ([int] 0)) {
-            $size = ([string] ([math]::Round((formatStr ((Get-WmiObject Win32_DiskDrive | select Size) | select-object -Index $i) -as [double]) / [math]::Pow(1024, 3), 2))).Substring(0, 4);
-            if ($size.EndsWith('.')) {
-                $size = $size.substring(0, $size.length -1);
-            }
-            $size += " GB";
+    $drive = Get-WmiObject Win32_DiskDrive | select DeviceID, Index, Caption, Size | where Index -EQ 0;
 
-            $obj | Add-Member "Laufwerk ID"  (formatStr ((Get-WmiObject Win32_DiskDrive | select DeviceID) | select-object -Index $i)).substring(4);
-            $obj | Add-Member "Laufwerk Index" (formatStr ((Get-WmiObject Win32_DiskDrive | select Index) | Select-Object -Index $i));
-            $obj | Add-Member "Laufwerk Name" (formatStr ((Get-WmiObject Win32_DiskDrive | select Caption) | Select-Object -Index $i));
-            $obj | Add-Member "Laufwerk Kapazität" $size;
-        }
+    $size = (formatDriveSize($drive | select Size)).Substring(0, 4);
+    if ($size.EndsWith('.')) {
+        $size = $size.substring(0, $size.length -1);
     }
+    $size += " GB";
+
+    $obj | Add-Member "Laufwerk ID"  (formatStr ($drive | select DeviceID)).substring(4);
+    $obj | Add-Member "Laufwerk Index" (formatStr ($drive | select Index));
+    $obj | Add-Member "Laufwerk Name" (formatStr ($drive | select Caption));
+    $obj | Add-Member "Laufwerk Kapazität" $size;
 
     return $obj;
 }
@@ -79,17 +100,21 @@ function laufwerke {
 function processor {
     param($obj);
 
-    $obj | Add-Member "Prozessor Name" (formatStr (Get-WmiObject Win32_Processor | select Name));
-    $obj | Add-Member "Prozessor Speed" (formatStr (Get-WmiObject Win32_Processor | select MaxClockSpeed) + " Mhz");
+    $processor = Get-WmiObject Win32_Processor | select Name, MaxClockSpeed;
 
-    return $obj
+    $obj | Add-Member "Prozessor Name" (formatStr ($processor | select Name));
+    $obj | Add-Member "Prozessor Frequenz" ((formatStr ($processor | select MaxClockSpeed)) + " Mhz");
+
+    return $obj;
 }
 
 function videoController {
     param($obj);
 
+    $videoController = Get-WmiObject Win32_VideoController | select Name, AdapterRAM;
+
     $obj | Add-Member "Grafikkarte Name" (formatStr (Get-WmiObject Win32_VideoController | select Name));
-    $obj | Add-Member "Grafikkarte RAM Kapazität" (([string] ([math]::Round((formatStr (Get-WmiObject Win32_VideoController | select AdapterRAM) -as [double]) / ([Math]::pow(1024, 3))))).substring(0, 1) + " GB");
+    $obj | Add-Member "Grafikkarte RAM Kapazität" (formatAsSize ($videoController | select AdapterRAM));
 
     return $obj;
 }
@@ -109,7 +134,7 @@ function CollectInfos {
     log -Log "Erfassen der Daten des Bios abegschlossen";
 
     log -Log "Erfasse Daten der Laufwerke ...";
-    $object = laufwerke $object;
+    $object = laufwerk $object;
     log -Log "Erfassen der Daten der Laufwerke abgeschlossen";
 
     log -Log "Erfasse Daten des RAM ...";
@@ -117,7 +142,7 @@ function CollectInfos {
     log -Log "Erfassen der Daten des RAM abgeschlossen";
 
     log -Log "Erfasse Daten des Prozessors ...";
-    $object = processor -obj $object -numProcessors ([int] (formatStr(Get-WmiObject Win32_Computersystem | select NumberOfProcessors)));
+    $object = processor -obj $object;
     log -Log "Erfassen der Daten des Prozessors abgeschlossen";
 
     log -Log "Erfasse Daten der Grafikkarte ...";
