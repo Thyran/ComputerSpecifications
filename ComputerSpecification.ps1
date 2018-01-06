@@ -12,12 +12,12 @@ function formatStr {
     return $string;
 }
 
-function formatAsSize {
+function SizeToInt {
     param ([string] $string);
 
-    $string = ([string] ([math]::round((formatStr($string) -as [double]) / [math]::pow(1024, 3)))).Substring(0, 1) + " GB";
+    $string = ([int] ([math]::round((formatStr($string) -as [double]) / [math]::pow(1024, 3))));
 
-    return $string;
+    return [int] $string;
 }
 
 function formatDriveSize {
@@ -67,13 +67,20 @@ function bios {
 function arbeitsspeicher {
     param($obj);
 
-    for ($i = 0; $i -le (Get-WmiObject Win32_PhysicalMemory | select Capacity).length - 1; $i++) {
-        $ram = (Get-WmiObject Win32_PhysicalMemory | select Tag, Capacity, Speed) | Select-Object -Index $i;
+    $ram = Get-WmiObject Win32_PhysicalMemory | select Capacity, Speed;
 
-        $obj | Add-Member "Ram Tag $i" (formatStr ($ram | select Tag));
-        $obj | Add-Member "RAM Kapazität $i" (formatAsSize ($ram | select Capacity));
-        $obj | Add-Member "RAM Frequenz $i" ((formatStr($ram | select Speed)) + " Mhz");
+    [int] $capacity = 0;
+    [int] $speed    = 0;
+
+    for ($i = 0; $i -le $ram.length - 1; $i++) {
+        $ramC = $ram | Select-Object -Index $i;
+
+        $capacity += (SizeToInt($ramC | select Capacity));
+        $speed    += ([int] (formatStr($ramC | select Speed)));
     }
+
+    $obj | Add-Member "GES RAM Kapazität" (([string] $capacity) + " GB");
+    $obj | Add-Member "AVG RAM Frequenz" (([string] ([double] ($speed / $ram.length))) + " Mhz");
 
     return $obj;
 }
@@ -114,7 +121,7 @@ function videoController {
     $videoController = Get-WmiObject Win32_VideoController | select Name, AdapterRAM;
 
     $obj | Add-Member "Grafikkarte Name" (formatStr (Get-WmiObject Win32_VideoController | select Name));
-    $obj | Add-Member "Grafikkarte RAM Kapazität" (formatAsSize ($videoController | select AdapterRAM));
+    $obj | Add-Member "Grafikkarte RAM Kapazität" (([string] (SizeToInt ($videoController | select AdapterRAM))).Substring(0, 1) + " GB");
 
     return $obj;
 }

@@ -7,10 +7,12 @@
     $out = @();
     $files = Get-ChildItem $mergeDir;
     foreach ($table in $files) {
-        Write-Output $table.FullName
-        if ($table.Name.substring($table.Name.length - 4, 4) -eq $fileType) {
-            $temp = Import-Csv -Path $table.FullName
-            $out += $temp;
+        if (!($table.Name.contains('all.csv'))) {
+            Write-Output $table.FullName
+            if ($table.Name.substring($table.Name.length - 4, 4) -eq $fileType) {
+                $temp = Import-Csv -Path $table.FullName
+                $out += $temp;
+            }
         }
     }
 
